@@ -1,0 +1,105 @@
+# Namespace
+# First, we'll create a namespace to house all the elements of myapp1 together (even though there is only one!).
+# The namespace will simply be called 'myapp1'
+# Create a namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sampleweb
+---
+# Ingress Rule
+# Next we create the ingress rule for the ingress controller to refer to.
+# This ingress rule will be called myapp1-ing and will be stored in the myapp1 namespace. 
+# This will define which service (and port) requests matching myapp1.bv.home should be directed to.
+# In the case below, requests will be directed to myapp1-svc
+
+# The spec: section will instruct which ingress controller to use.
+# The spec: also contains the hostname rules to apply along with the target service.
+# Create ingress rule
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sampleweb-ing
+  namespace: sampleweb
+spec:
+  # This tells the ingress rule which ingress controller to use
+  # Can discover the name with kubectl get ingressclass -A
+  # (-A looks in all namespaces, quicker than specifying -n ingress-nginx)
+
+  # kubectl explain ingress.spec.ingressClassName
+  # KIND:     Ingress
+  # VERSION:  networking.k8s.io/v1
+
+  # FIELD:    ingressClassName <string>
+
+  # DESCRIPTION:
+  #     IngressClassName is the name of the IngressClass cluster resource. The
+  #     associated IngressClass defines which controller will implement the
+  #     resource. This replaces the deprecated `kubernetes.io/ingress.class`
+  #     annotation. For backwards compatibility, when that annotation is set, it
+  #     must be given precedence over this field. The controller may emit a warning
+  #     if the field and annotation have different values. Implementations of this
+  #     API should ignore Ingresses without a class specified. An IngressClass
+  #     resource may be marked as default, which can be used to set a default value
+  #     for this field. For more information, refer to the IngressClass
+  #     documentation.
+  ingressClassName: nginx
+  rules:
+  # The incoming URL
+  - host: sampleweb.bv.home
+    http:
+      paths:
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: sampleweb-svc
+            port: 
+              number: 80
+---
+# Service
+# Now we create the service that is targeted by the ingress rule and the application (and the application target port) that 
+# the service will be a front for. Again, the service will live in the myapp1 namespace.
+apiVersion: v1
+kind: Service
+metadata:
+  name: sampleweb-svc
+  namespace: sampleweb
+spec:
+  selector:
+    app: sampleweb-app
+  ports:
+  # The service listening port
+  - port: 80
+    # The target port listening inside the pod
+    targetPort: 80
+---
+# Deployment (Pods)
+# Finally, we define the actual deployment, as before, to be stored in the myapp1 namespace.
+# This also details how the application should be deployed, i.e. number of replicas, resource limitations 
+# that will apply to the pod (a good idea to stop memory leaks, etc consuming the whole of the cluster resources), the pod 
+# listening port, etc.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sampleweb-app
+  namespace: sampleweb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sampleweb-app
+  template:
+    metadata:
+      labels:
+        app: sampleweb-app
+    spec:
+      containers:
+      - name: sampleweb-app
+        image: nginx:latest
+        resources:
+          limits:
+            memory: "32Mi"
+            cpu: "2m"
+        ports:
+        - containerPort: 80
